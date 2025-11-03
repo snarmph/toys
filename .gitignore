@@ -1,0 +1,4 @@
+build/
+debug/
+build-all.bat
+*.pdb
