@@ -17,6 +17,9 @@ TOY_OPTION_DEFINE(head) {
     i64 files_count;
 }; 
 
+i64 head__count = 0;
+bool head__print_names = false;
+
 void TOY_OPTION_PARSE(head)(int argc, char **argv, TOY_OPTION(head) *opt) {
     bool zero_terminated = false;
 
@@ -149,27 +152,48 @@ void head_impl(arena_t scratch, oshandle_t fp, TOY_OPTION(head) *opt) {
     }
 }
 
+void head__glob(arena_t scratch, strview_t fname, void *udata) {
+    TOY_OPTION(head) *opt = udata;
+   
+    oshandle_t fp = os_file_open(fname, OS_FILE_READ);
+    if (!os_handle_valid(fp)) {
+        err("can't open %v: %v", fname, os_get_error_string(os_get_last_error()));
+        return;
+    }
+
+    if (head__print_names && !opt->quiet) {
+        if (head__count++ > 0) println("\n");
+        println(TERM_FG_ORANGE "==> %v <==" TERM_FG_DEFAULT, fname);
+    }
+
+    head_impl(scratch, fp, opt);
+    os_file_close(fp);
+}
+
 void TOY(head)(int argc, char **argv) {
     TOY_OPTION(head) opt = { .line_delim = '\n' };
 
     TOY_OPTION_PARSE(head)(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
+    glob_t glob_desc = {
+        .recursive = true,
+        .udata = &opt,
+        .cb = head__glob,
+    };
+
+    head__print_names = opt.files_count > 1;
 
     if (opt.files_count) {
-        bool should_print_names = (opt.files_count > 1 && !opt.quiet) || opt.verbose;
         for (int i = 0; i < opt.files_count; ++i) {
-            oshandle_t fp = os_file_open(opt.files[i], OS_FILE_READ);
-            if (!os_handle_valid(fp)) {
-                err("can't open %v: %v", opt.files[i], os_get_error_string(os_get_last_error()));
-                continue;
+            if (common_is_glob(opt.files[i])) {
+                head__print_names = true;
+                glob_desc.exp = opt.files[i];
+                common_glob(arena, &glob_desc);
             }
-            if (should_print_names) {
-                if (i > 0) println("\n");
-                println(TERM_FG_ORANGE "==> %v <==" TERM_FG_DEFAULT, opt.files[i]);
+            else {
+                head__glob(arena, opt.files[i], &opt);
             }
-            head_impl(arena, fp, &opt);
-            os_file_close(fp);
         }
     }
     else {

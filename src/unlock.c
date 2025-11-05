@@ -50,7 +50,8 @@ void TOY_OPTION_PARSE(unlock)(int argc, char **argv, TOY_OPTION(unlock) *opt) {
     );
 }
 
-void unlock_file(arena_t scratch, strview_t filename, TOY_OPTION(unlock) *opt) {
+void unlock_file(arena_t scratch, strview_t filename, void *udata) {
+    TOY_OPTION(unlock) *opt = udata;
     str16_t fname = strv_to_str16(&scratch, filename);
     const u16 *files[] = { fname.buf };
     DWORD error = RmRegisterResources(
@@ -166,123 +167,22 @@ void TOY(unlock)(int argc, char **argv) {
     if (error) {
         fatal("failed RmStartSession: %v", os_get_error_string(os_get_last_error()));
     }
+
+    glob_t glob_desc = {
+        .recursive = true,
+        .cb = unlock_file,
+        .udata = &opt,
+    };
     
     for (i64 i = 0; i < opt.file_count; ++i) {
-        unlock_file(arena, opt.files[i], &opt);
+        if (common_is_glob(opt.files[i])) {
+            glob_desc.exp = opt.files[i];
+            common_glob(arena, &glob_desc);
+        }
+        else {
+            unlock_file(arena, opt.files[i], &opt);
+        }
     }
 
     RmEndSession(opt.session);
 }
-
-#if 0
-void check(DWORD e, const char *fn) {
-    if (e) {
-        fatal("%s failed: %v", fn, os_get_error_string(e));
-    }
-}
-
-char get_option(strview_t options) {
-    char chosen = '\0';
-    while (true) {
-        chosen = char_lower((char)_getch());
-        if (strv_contains(options, chosen)) {
-            break;
-        }
-        println("");
-        warn("unreacognized option %c", chosen);
-        print("> ");
-    }
-    println("");
-    return chosen;
-}
-
-void kill(uint pid) {
-    HANDLE process = OpenProcess(PROCESS_TERMINATE, false, pid);
-    if (process == INVALID_HANDLE_VALUE) {
-        warn("process %u not found", pid);
-        return;
-    }
-    TerminateProcess(process, 1);
-    CloseHandle(process);
-}
-
-int main(int argc, char **argv) {
-    os_init();
-
-    if (argc != 2) {
-        print_usage();
-    }
-
-    arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
-
-    strview_t fname = strv(argv[1]);
-    str16_t filename = strv_to_str16(&arena, fname);
-
-    wchar_t session_key[CCH_RM_SESSION_KEY+1] = {0};
-    DWORD session = 0;
-
-    DWORD error = RmStartSession(&session, 0, session_key);
-    check(error, "RmStartSession");
-    
-    error = RmRegisterResources(
-        session, 
-        1, 
-        (const u16**)&filename.buf, 
-        0, 
-        NULL, 
-        0, 
-        NULL); 
-    check(error, "RmRegisterResources");
-
-    DWORD reason = 0;
-    uint proc_info_count;
-    uint proc_info = 10;
-    RM_PROCESS_INFO info[10];
-    error = RmGetList(session, &proc_info_count, &proc_info, info, &reason);
-    check(error, "RmGetList");
-
-    if (proc_info == 0) {
-        info("no apps are locking %v", fname);
-        return 0;
-    }
-
-    println("apps locking %v:", fname);
-    for (uint i = 0; i < proc_info; ++i) {
-        arena_t scratch = arena;
-        str_t app_name  = str_from_str16(&scratch, str16_init(info[i].strAppName, 0));
-
-        println("  %v", app_name);
-    }
-
-    bool is_plural = proc_info > 1;
-    strview_t pron[2] = { strv("it"), strv("them") };
-
-    pretty_print(arena, "do you want to kill %v? (<green>Y</>es, <yellow>S</>ome, <red>N</>o)", pron[is_plural]);
-    char choice = get_option(strv("ysn"));
-
-    if (choice == 'n') {
-        return 0;
-    }
-
-    if (choice == 'y' || choice == 's') {
-        for (uint i = 0; i < proc_info; ++i) {
-            bool should_kill = true;
-            if (choice == 's') {
-                arena_t scratch = arena;
-                str_t app_name  = str_from_str16(&scratch, str16_init(info[i].strAppName, 0));
-
-                pretty_print(scratch, "kill %v? (<green>y</>/<red>n</>)", app_name);
-                char kill_choice = get_option(strv("yn"));
-                should_kill = kill_choice == 'y';
-            }
-
-            if (should_kill) {
-                kill(info[i].Process.dwProcessId);
-            }
-        }
-
-    }
-
-    RmEndSession(session);
-}
-#endif

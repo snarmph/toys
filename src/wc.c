@@ -16,7 +16,23 @@ TOY_OPTION_DEFINE(wc) {
     bool print_words;
     bool print_fname;
     bool print_max_len;
+    bool print_total;
+
+    arena_t name_arena;
 };
+
+typedef struct wc_info_t wc_info_t;
+struct wc_info_t {
+    strview_t filename;
+    i64 bytes;
+    i64 chars;
+    i64 lines;
+    i64 words;
+    i64 max_len;
+};
+
+wc_info_t wc__data[WC_MAX_ITEMS * 2];
+int wc__count = 0;
 
 void TOY_OPTION_PARSE(wc)(int argc, char **argv, TOY_OPTION(wc) *opt) {
     opt->in_piped = common_is_piped(os_stdin());
@@ -60,6 +76,11 @@ void TOY_OPTION_PARSE(wc)(int argc, char **argv, TOY_OPTION(wc) *opt) {
             "Print the length of the longest line.",
             USAGE_BOOL(opt->print_max_len),
         },
+        {
+            't', "total",
+            "Print total values.",
+            USAGE_BOOL(opt->print_total),
+        },
     );
 
     if (!(opt->print_bytes || opt->print_chars || opt->print_lines ||
@@ -69,24 +90,10 @@ void TOY_OPTION_PARSE(wc)(int argc, char **argv, TOY_OPTION(wc) *opt) {
         opt->print_words = true;
         opt->print_bytes = true;
         opt->print_fname = true;
+        opt->print_total = true;
     }
 }
 
-typedef struct wc_info_t wc_info_t;
-struct wc_info_t {
-    strview_t filename;
-    i64 bytes;
-    i64 chars;
-    i64 lines;
-    i64 words;
-    i64 max_len;
-};
-
-typedef struct wc_desc_t wc_desc_t;
-struct wc_desc_t {
-    wc_info_t info[WC_MAX_ITEMS + 1];
-    int count;
-};
 
 i64 wc_words(strview_t line) {
     i64 count = 0;
@@ -126,6 +133,16 @@ void wc_count(arena_t scratch, oshandle_t fp, wc_info_t *out, TOY_OPTION(wc) *op
     out->max_len = max_len;
 }
 
+void wc__glob(arena_t scratch, strview_t fname, void *udata) {
+    TOY_OPTION(wc) *opt = udata;
+    wc_info_t *info = &wc__data[wc__count++];
+
+    info->filename = strv(str(&opt->name_arena, fname));
+    oshandle_t fp = os_file_open(fname, OS_FILE_READ);
+    wc_count(scratch, fp, info, opt);
+    os_file_close(fp);
+}
+
 int wc_count_digits(i64 number) {
     int digits = 1;
     while (number > 10) {
@@ -139,30 +156,35 @@ void TOY(wc)(int argc, char **argv) {
     TOY_OPTION(wc) opt = {0};
     TOY_OPTION_PARSE(wc)(argc, argv, &opt);
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
+
+    opt.name_arena = arena_make(ARENA_VIRTUAL, GB(1));
+
+    glob_t glob_desc = {
+        .recursive = true,
+        .cb = wc__glob,
+        .udata = &opt,
+    };
         
-    wc_info_t data[WC_MAX_ITEMS + 1];
     bool in_parsed = false;
     for (int i = 0; i < opt.file_count; ++i) {
-        wc_info_t *info = &data[i];
-        info->filename = opt.files[i];
-        oshandle_t fp = os_handle_zero();
         if (!in_parsed && strv_equals(opt.files[i], strv("-"))) {
-            info->filename = strv("stdin");
-            fp = os_stdin();
             in_parsed = true;
+
+            wc_info_t *info = &wc__data[wc__count++];
+            info->filename = strv("stdin");
+            wc_count(arena, os_stdin(), info, &opt);
+        }
+        else if (common_is_glob(opt.files[i])) {
+            glob_desc.exp = opt.files[i];
+            common_glob(arena, &glob_desc);
         }
         else {
-            fp = os_file_open(opt.files[i], OS_FILE_READ);
-        }
-        if (os_handle_valid(fp)) {
-            wc_count(arena, fp, info, &opt);
-            os_file_close(fp);
+            wc__glob(arena, opt.files[i], &opt);
         }
     }
 
-    i64 count = opt.file_count;
     if (opt.in_piped && !in_parsed) {
-        wc_info_t *info = &data[count++];
+        wc_info_t *info = &wc__data[wc__count++];
         info->filename = strv("stdin");
         wc_count(arena, os_stdin(), info, &opt);
     }
@@ -172,14 +194,27 @@ void TOY(wc)(int argc, char **argv) {
     i64 max_words  = 0;
     i64 max_lines  = 0;
     i64 max_length = 0;
+    usize max_name = 0;
 
-    for (int i = 0; i < count; ++i) {
-        max_bytes = MAX(max_bytes, data[i].bytes);
-        max_chars = MAX(max_chars, data[i].chars);
-        max_words = MAX(max_words, data[i].words);
-        max_lines = MAX(max_lines, data[i].lines);
-        max_length = MAX(max_length, data[i].max_len);
+    i64 total_lines = 0;
+    i64 total_words = 0;
+    i64 total_bytes = 0;
+    i64 total_chars = 0;
+
+    for (int i = 0; i < wc__count; ++i) {
+        max_length = MAX(max_length, wc__data[i].max_len);
+        max_name   = MAX(max_name, wc__data[i].filename.len);
+
+        total_lines += wc__data[i].lines;
+        total_words += wc__data[i].words;
+        total_bytes += wc__data[i].bytes;
+        total_chars += wc__data[i].chars;
     }
+
+    max_bytes = total_bytes;
+    max_chars = total_chars;
+    max_words = total_words;
+    max_lines = total_lines;
 
     int bytes_digits  = wc_count_digits(max_bytes);
     int chars_digits  = wc_count_digits(max_chars);
@@ -187,8 +222,8 @@ void TOY(wc)(int argc, char **argv) {
     int lines_digits  = wc_count_digits(max_lines);
     int length_digits = wc_count_digits(max_length);
 
-    for (int i = 0; i < count; ++i) {
-        wc_info_t *info = &data[i];
+    for (int i = 0; i < wc__count; ++i) {
+        wc_info_t *info = &wc__data[i];
         if (opt.print_lines)   print("%*d ", lines_digits, info->lines);
         if (opt.print_words)   print("%*d ", words_digits, info->words);
         if (opt.print_bytes)   print("%*d ", bytes_digits, info->bytes);
@@ -197,4 +232,29 @@ void TOY(wc)(int argc, char **argv) {
         if (opt.print_fname)   print("%v", info->filename);
         print("\n");
     }
+
+    if (!opt.print_total) {
+        return;
+    }
+
+    int full_width = 0;
+    
+    if (opt.print_lines)   full_width += lines_digits + 1;
+    if (opt.print_words)   full_width += words_digits + 1;
+    if (opt.print_bytes)   full_width += bytes_digits + 1;
+    if (opt.print_chars)   full_width += chars_digits + 1;
+    if (opt.print_max_len) full_width += length_digits + 1;
+    if (opt.print_fname)   full_width += wc__data[wc__count-1].filename.len;
+
+    char spaces[256] = {0};
+    memset(spaces, '-', sizeof(spaces) - 1);
+    println("%.*s", full_width, spaces);
+
+    if (opt.print_lines)   print("%*lld ", lines_digits, total_lines);
+    if (opt.print_words)   print("%*lld ", words_digits, total_words);
+    if (opt.print_bytes)   print("%*lld ", bytes_digits, total_bytes);
+    if (opt.print_chars)   print("%*lld ", chars_digits, total_chars);
+    if (opt.print_chars)   print("%*s ", chars_digits, "");
+    if (opt.print_max_len) print("%*s ", length_digits, "");
+    print("total\n");
 }

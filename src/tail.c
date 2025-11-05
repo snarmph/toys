@@ -20,6 +20,9 @@ TOY_OPTION_DEFINE(tail) {
     i64 files_count;
 };
 
+bool tail__print_names = false;
+i64 tail__count = 0;
+
 void TOY_OPTION_PARSE(tail)(int argc, char **argv, TOY_OPTION(tail) *opt) {
     opt->in_piped = common_is_piped(os_stdin());
 
@@ -238,6 +241,29 @@ bool tail_wait(int ms) {
     return true;
 }
 
+void tail__glob(arena_t scratch, strview_t fname, void *udata) {
+    TOY_OPTION(tail) *opt = udata;
+
+    oshandle_t fp = os_handle_zero();
+    do {
+        fp = os_file_open(fname, OS_FILE_READ);
+    } while (opt->retry && !os_handle_valid(fp) && tail_wait(100));
+
+    if (!os_handle_valid(fp)) {
+        err("can't open %v: %v", fname, os_get_error_string(os_get_last_error()));
+        return;
+    }
+
+    if (tail__print_names && !opt->quiet) {
+        if (tail__count++ > 0) println("\n");
+        println(TERM_FG_ORANGE "==> %v <==" TERM_FG_DEFAULT, fname);
+    }
+
+    str_t data = tail_impl(&scratch, fp, opt);
+    print("%v", data);
+    os_file_close(fp);
+}
+
 void TOY(tail)(int argc, char **argv) {
     TOY_OPTION(tail) opt = { .line_delim = '\n' };
 
@@ -255,9 +281,9 @@ void TOY(tail)(int argc, char **argv) {
         print("%v", data);
 
         while (true) {
-            arena_t scratch = arena;
+            arena_rewind(&scratch, 0);
             if (fw_has_changed(scratch, &fw)) {
-                oshandle_t fp = os_handle_zero();
+                fp = os_handle_zero();
                 do {
                     fp = os_file_open(opt.files[0], OS_FILE_READ);
                 } while (opt.retry && !os_handle_valid(fp) && tail_wait(100));
@@ -271,8 +297,6 @@ void TOY(tail)(int argc, char **argv) {
                     continue;
                 }
 
-                usize to_read = new_size - old_size;
-
                 os_file_seek(fp, old_size);
                 str_t new_data = common_read_buffered(&scratch, fp);
                 os_file_close(fp);
@@ -284,30 +308,28 @@ void TOY(tail)(int argc, char **argv) {
             if (opt.poll_time) {
                 // sleep so we don't use 100% cpu, this means
                 // it will probably wait too long.
-                Sleep(opt.poll_time);
+                Sleep((uint)opt.poll_time);
             }
         }
     }
 
+    tail__print_names = opt.files_count > 1;
+    glob_t glob_desc = {
+        .recursive = true,
+        .udata = &opt,
+        .cb = tail__glob,
+    };
+
     if (opt.files_count) {
-        bool should_print_names = (opt.files_count > 1 && !opt.quiet) || opt.verbose;
         for (int i = 0; i < opt.files_count; ++i) {
-            oshandle_t fp = os_file_open(opt.files[i], OS_FILE_READ);
-            if (!os_handle_valid(fp)) {
-                if (opt.retry) {
-                    --i;
-                    continue;
-                }
-                err("can't open %v: %v", opt.files[i], os_get_error_string(os_get_last_error()));
-                continue;
+            if (common_is_glob(opt.files[i])) {
+                tail__print_names = true;
+                glob_desc.exp = opt.files[i];
+                common_glob(arena, &glob_desc);
             }
-            if (should_print_names) {
-                if (i > 0) println("\n");
-                println(TERM_FG_ORANGE "==> %v <==" TERM_FG_DEFAULT, opt.files[i]);
+            else {
+                tail__glob(arena, opt.files[i], &opt);
             }
-            str_t data = tail_impl(&arena, fp, &opt);
-            print("%v", data);
-            os_file_close(fp);
         }
     }
     else {

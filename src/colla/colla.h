@@ -603,28 +603,23 @@ bool ibstr_get_i16(ibstream_t *ib, i16 *out);
 bool ibstr_get_i32(ibstream_t *ib, i32 *out);
 bool ibstr_get_i64(ibstream_t *ib, i64 *out);
 
-// SIMPLE REGEX /////////////////////////////////
+// REGEX ////////////////////////////////////////
 
-// only supports *, every star matches until the following character
-// is found, e.g.
-// ab*e
-// abcde
-// matches (cd)
+// typedef struct rg_result_t rg_result_t;
+// struct rg_result_t {
+//     strview_t text;
+//     i64 offset;
+// };
+//
+// typedef struct rg_match_t rg_match_t;
+// struct rg_match_t {
+//     rg_result_t matches[COLLA_RG_MAX_MATCHES];
+//     int count;
+//     bool found_match;
+// };
 
-typedef struct rg_result_t rg_result_t;
-struct rg_result_t {
-    strview_t text;
-    i64 offset;
-};
-
-typedef struct rg_match_t rg_match_t;
-struct rg_match_t {
-    rg_result_t matches[COLLA_RG_MAX_MATCHES];
-    int count;
-    bool found_match;
-};
-
-bool rg_matches(strview_t rg, strview_t text, bool glob_style);
+bool rg_matches(strview_t rg, strview_t text);
+bool glob_matches(strview_t glob, strview_t text);
 
 /////////////////////////////////////////////////
 

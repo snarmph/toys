@@ -33,6 +33,8 @@
 #include "tee.c"
 #include "time.c"
 #include "unlock.c"
+#include "tac.c"
+#include "sleep.c"
 
 typedef struct toy_t toy_t;
 struct toy_t {
@@ -61,8 +63,10 @@ int main(int argc, char **argv) {
         TOY_DEFINE(pwgen),
         TOY_DEFINE(rm),
         TOY_DEFINE(serve),
+        TOY_DEFINE(sleep),
         TOY_DEFINE(stat),
         TOY_DEFINE(strings),
+        TOY_DEFINE(tac),
         TOY_DEFINE(tail),
         TOY_DEFINE(tee),
         TOY_DEFINE(time),
@@ -84,7 +88,6 @@ int main(int argc, char **argv) {
         ) {
             for (int i = 0; i < arrlen(toys); ++i) {
                 print("%v", toys[i].name);
-                // if (i + 1 < arrlen(toys)) print("\n");
                 if (i + 1 < arrlen(toys)) println("");
             }
             return 0;

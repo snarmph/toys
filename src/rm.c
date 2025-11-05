@@ -92,8 +92,8 @@ void TOY_OPTION_PARSE(rm)(int argc, char **argv, TOY_OPTION(rm) *opt) {
     );
 }
 
-void remove_file_or_dir(arena_t scratch, str_t path, void *udata) {
-    str_t fullpath = os_file_fullpath(&scratch, strv(path));
+void remove_file_or_dir(arena_t scratch, strview_t path, void *udata) {
+    str_t fullpath = os_file_fullpath(&scratch, path);
     // remove \\?\ from beginning of fullpath
     strview_t final_path = str_sub(fullpath, 4, STR_END);
     str16_t winpath = strv_to_str16(&scratch, final_path);
@@ -154,45 +154,25 @@ void TOY(rm)(int argc, char **argv) {
 
     rm_delete_data_t del_data = { .pfo = pfo, .opt = &opt };
 
-    str_t rg[RM_MAX_ITEMS] = {0};
+    glob_t glob_data = {
+        .cb = remove_file_or_dir,
+        .udata = &del_data,
+        .recursive = opt.recursive,
+        .add_hidden = true,
+    };
+
     for (i64 i = 0; i < opt.rg_count; ++i) {
-        rg[i] = str(&arena, opt.rg[i]);
-        for (usize k = 0; k < rg[i].len; ++k) {
-            if (rg[i].buf[k] == '\\' && !(k + 1 >= rg[i].len || rg[i].buf[k+1] == '*')) {
-                rg[i].buf[k] = '/';
-            }
+        if (common_is_glob(opt.rg[i])) {
+            glob_data.exp = opt.rg[i];
+
+            common_glob(
+                arena, 
+                &glob_data
+            );
         }
-
-        strview_t rgv = strv(rg[i]);
-        if (!strv_contains(rgv, '*')) {
-            if (!os_file_or_dir_exists(rgv)) {
-                if (opt.ignore) {
-                    println(TERM_FG_RED "deleting: " TERM_RESET "%v", rgv);
-                    continue;
-                }
-                err("file or folder \"%v\" don't exist", rgv);
-                os_abort(1);
-            }
-            remove_file_or_dir(arena, rg[i], &del_data);
-            continue;
+        else {
+            remove_file_or_dir(arena, opt.rg[i], &del_data);
         }
-
-        strview_t dir;
-        os_file_split_path(rgv, &dir, NULL, NULL);
-
-        if (dir.len > 0) {
-            // include slash
-            dir.len += 1;
-        }
-
-        fd_search(arena, &(fd_desc_t){
-            .cb = remove_file_or_dir,
-            .udata = &del_data,
-            .path = dir,
-            .rg = rgv,
-            .recursive = opt.recursive,
-            .add_hidden = true,
-        });
     }
 
     if (!opt.dry_run && del_data.count > 0) {

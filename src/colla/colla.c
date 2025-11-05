@@ -473,7 +473,7 @@ usize strv_rfind(strview_t ctx, char c, usize from_right) {
     if (ctx.len == 0) return STR_NONE;
     if (from_right > ctx.len) from_right = ctx.len;
     isize end = (isize)(ctx.len - from_right);
-    for (isize i = end; i >= 0; --i) {
+    for (isize i = end - 1; i >= 0; --i) {
         if (ctx.buf[i] == c) {
             return (usize)i;
         }
@@ -932,26 +932,26 @@ bool ibstr_get_i64(ibstream_t *ib, i64 *out) {
 
 // adapted from rob pike regular expression matcher
 
-bool rg__match_here(instream_t r, instream_t t, bool glob_style);
+bool rg__match_here(instream_t r, instream_t t);
 
-bool rg__match_star(char c, instream_t r, instream_t t, bool glob_style) {
+bool rg__match_star(char c, instream_t r, instream_t t) {
     do {
-        if (rg__match_here(r, t, glob_style)) {
+        if (rg__match_here(r, t)) {
             return true;
         }
     } while (!istr_is_finished(&t) && (istr_get(&t) == c || c == '.'));
     return false;
 }
 
-bool rg__match_here(instream_t r, instream_t t, bool glob_style) {
-    char rc = istr_peek(&r);
+bool rg__match_here(instream_t r, instream_t t) {
+    char rc  = istr_peek(&r);
     char rcn = istr_peek_next(&r);
     if (rc == '\0') {
         return true;
     }
-    if ((glob_style && rc == '*') || (!glob_style && rcn == '*')) {
-        istr_skip(&r, 2 - glob_style);
-        return rg__match_star(glob_style ? rcn : rc, r, t, glob_style);
+    if (rcn == '*') {
+        istr_skip(&r, 2);
+        return rg__match_star(rc, r, t);
     }
     if (rc == '$' && rcn == '\0') {
         return istr_peek(&t) == '\0';
@@ -959,29 +959,274 @@ bool rg__match_here(instream_t r, instream_t t, bool glob_style) {
     if (!istr_is_finished(&t) && (rc == '.' || rc == istr_peek(&t))) {
         istr_skip(&r, 1);
         istr_skip(&t, 1);
-        return rg__match_here(r, t, glob_style);
+        return rg__match_here(r, t);
     }
     return false;
 }
 
-bool rg__matches_impl(instream_t r, instream_t t, bool glob_style) {
+bool rg__matches_impl(instream_t r, instream_t t) {
     do {
-        if (rg__match_here(r, t, glob_style)) {
+        if (rg__match_here(r, t)) {
             return true;
         }
     } while (istr_get(&t) != '\0');
     return false;
 }
 
-bool rg_matches(strview_t rg, strview_t text, bool glob_style) {
+bool rg_matches(strview_t rg, strview_t text) {
     if (strv_contains(rg, '*')) {
         instream_t r = istr_init(rg);
         instream_t t = istr_init(text);
-        return rg__matches_impl(r, t, glob_style);
+        return rg__matches_impl(r, t);
     }
     else {
         return strv_equals(rg, text);
     }
+}
+
+///////////////////////////////////////////////////
+// glob has the following special characters:
+//  - * matches any string
+//  - ? matches any character
+//  - [ start a match group
+//    - cannot be empty, so this matches either
+//      ] or [:
+//      [][]
+//      []]
+//    - if theres a - between two characters, it
+//      matches a range:
+//      [A-Za-z0-9] is equal to 
+//      [ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789]
+//    - if there's a !, it negates the match,
+//      so [!abc] matches anything but a, b, or c
+//    - if there's a + after the last square bracket,
+//      it matches 1+ times
+
+// g: abc*_d?f[0-9]+c
+// t: abcdef_def901c
+// ---------------- 
+// g[0] == t[0] -> ++g, ++t
+// g: bc*_d?f[0-9]+c
+// t: bcdef_def901c
+// ---------------- 
+// g[0] == t[0] -> ++g, ++t
+// g: c*_d?f[0-9]+c
+// t: cdef_def901c
+// ---------------- 
+// g[0] == t[0] -> ++g, ++t
+// g: *_d?f[0-9]+c
+// t: def_def901c
+// ---------------- 
+// g[0] == * -> ++g, star match
+//   g: _d?f[0-9]+c
+//   t: def_def901c
+//   c = _
+// ---------------- 
+//   g[0] != t[0]
+//   star: ++t
+//   g: _d?f[0-9]+c
+//   t: ef_def901c
+// ---------------- 
+//   g[0] != t[0]
+//   star: ++t
+//   g: _d?f[0-9]+c
+//   t: f_def901c
+// ---------------- 
+//   g[0] != t[0]
+//   star: ++t
+//   g: _d?f[0-9]+c
+//   t: _def901c
+// ---------------- 
+//   g[0] == t[0]
+//   ++g, ++t
+//   g: d?f[0-9]+c
+//   t: def901c
+//   return true from star
+// ---------------- 
+// g[0] == t[0] -> ++g, ++t
+// g: ?f[0-9]+c
+// t: ef901c
+// ---------------- 
+// g[0] == ? -> ++g, ++t
+// g: f[0-9]+c
+// t: f901c
+// ---------------- 
+// g[0] == t[0] -> ++g, ++t
+// g: [0-9]+c
+// t: 901c
+// ---------------- 
+// g[0] == [
+// begin square:
+//   -- grab pattern
+//   s = strv_empty 
+//   while (s == strv_empty)
+//      s += g.getUntil(])
+//   matches_multi = g.peek() == '+'
+//   s: 0-9 
+//   -- parse pattern
+//   type: match
+//   multi: matches_multi
+//   ranges[MAX_RANGES] = {
+//      { from: 0, to: 9 }
+//   }
+// ---------------- 
+//   matched_once = false
+//   do {
+//     if (!s.inRange(t[0])) {
+//        break;
+//     }
+//     matched_once true
+//     ++t
+//   } while (s.multi);
+//   return matched_atleast_once
+// ---------------- 
+//     t: 901c
+//     t[0] == 9 -> in range = true
+//     ++t
+//     t: 01c
+//     t[0] == 0 -> in rage
+//     ++t
+//     t: 1c
+//     t[0] == 1 -> in rage
+//     ++t
+//     t: c
+//     t[0] == 1 -> not in rage
+//     return true
+// ---------------- 
+// g: c
+// t: c
+// ---------------- 
+// g[0] == t[0] -> ++g, ++t
+// g:
+// t:
+// ---------------- 
+// g is empty -> return true
+//
+
+bool glob__match_here(instream_t *g, instream_t *t);
+
+bool glob__match_star(instream_t *g, instream_t *t) {
+    char c = istr_get(g);
+    do {
+        if (istr_get(t) == c) {
+            return true;
+        }
+    } while (!istr_is_finished(t));
+    return false;
+}
+
+#define GLOB_MAX_RANGES 128
+
+typedef struct {
+    char from;
+    char to;
+} glob_range_t;
+
+typedef struct {
+    bool multi;
+    bool exclude;
+    glob_range_t ranges[GLOB_MAX_RANGES];
+    int range_count;
+} glob_pat_t;
+
+bool glob__pat_is_in_range(glob_pat_t *pat, char c) {
+    for (int i = 0; i < pat->range_count; ++i) {
+        if (c >= pat->ranges[i].from &&
+            c <= pat->ranges[i].to
+        ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool glob__match_pattern(instream_t *t, strview_t pat, bool multi) {
+    glob_pat_t p = {
+        .multi = multi,
+        .exclude = pat.buf[0] == '!',
+    };
+    for (usize i = 0; i < pat.len; ++i) {
+        char from = '\0', to = '\0';
+        if (i > 0 && pat.buf[i] == '-' && (i + 1) < pat.len) {
+            from = pat.buf[i - 1];
+            to = pat.buf[i + 1];
+            ++i;
+        }
+        else if ((i + 1) >= pat.len || pat.buf[i+1] != '-') {
+            from = to = pat.buf[i];
+        }
+        if (from && to) {
+            p.ranges[p.range_count++] = (glob_range_t){ from, to };
+        }
+    }
+
+    bool matched_atleast_once = false;
+    do {
+        char c = istr_peek(t);
+        bool is_in_range = glob__pat_is_in_range(&p, c);
+        if ((!is_in_range && !p.exclude) || (is_in_range && p.exclude)) {
+            break;
+        }
+        matched_atleast_once = true;
+        istr_skip(t, 1);
+    } while (p.multi);
+
+    return matched_atleast_once;
+}
+
+bool glob__match_here(instream_t *g, instream_t *t) {
+    char gc  = istr_peek(g);
+    if (gc == '*') {
+        istr_skip(g, 1);
+        if (istr_is_finished(g)) {
+            // set t (text) to empty, as the rest of the patter is sure to match
+            *t = istr_init(STRV_EMPTY);
+            return true;
+        }
+        return glob__match_star(g, t);
+    }
+    if (gc == '[') {
+        // skip [
+        istr_skip(g, 1);
+        strview_t pattern = istr_get_view(g, ']');
+        if (pattern.len == 0) {
+            istr_skip(g, 1);
+            pattern = istr_get_view(g, ']');
+            // add first ]
+            pattern.buf--;
+            pattern.len++;
+        }
+        // skip ]
+        istr_skip(g, 1);
+        bool multi = false;
+        if (istr_peek(g) == '+') {
+            istr_skip(g, 1);
+            multi = true;
+        }
+        return glob__match_pattern(t, pattern, multi);
+    }
+    if (!istr_is_finished(t) && (gc == '?' || gc == istr_peek(t))) {
+        istr_skip(g, 1);
+        istr_skip(t, 1);
+        return true;
+    }
+
+    return false;
+}
+
+bool glob__impl(instream_t *g, instream_t *t) {
+    while (!istr_is_finished(g) && !istr_is_finished(t)) {
+        if (!glob__match_here(g, t)) {
+            return false;
+        }
+    }
+    return istr_get(g) == '\0' && istr_get(t) == '\0';
+}
+
+bool glob_matches(strview_t glob, strview_t text) {
+    instream_t g = istr_init(glob);
+    instream_t t = istr_init(text);
+    return glob__impl(&g, &t);
 }
 
 // == ARENA ========================================================

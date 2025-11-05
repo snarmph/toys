@@ -116,16 +116,19 @@ struct fd_desc_t {
 
 void fd_search(arena_t scratch, const fd_desc_t *desc);
 
+typedef void (*glob_cb_f)(arena_t scratch, strview_t path, void *udata);
+
 typedef struct glob_t glob_t;
 struct glob_t {
-    fd_f *cb;
-    void *udata;
     strview_t exp;
     bool add_hidden;
     bool recursive;
+    glob_cb_f cb;
+    void *udata;
 };
 
 void common_glob(arena_t scratch, glob_t *desc);
+bool common_is_glob(strview_t exp);
 
 typedef struct ticker_t ticker_t;
 struct ticker_t {
@@ -279,7 +282,7 @@ void fd__iter_dir(arena_t scratch, strview_t path, const fd_desc_t *desc) {
         str_t fullpath = str_fmt(&scratch, "%v%v/", path, entry->name);
         strview_t fname_only = str_sub(fullpath, 0, fullpath.len - 1);
 
-        if (rg_matches(desc->rg, fname_only, true)) {
+        if (glob_matches(desc->rg, fname_only)) {
             desc->cb(scratch, str(&scratch, fname_only), desc->udata);
         }
 
@@ -295,6 +298,54 @@ void fd__iter_dir(arena_t scratch, strview_t path, const fd_desc_t *desc) {
 
 void fd_search(arena_t scratch, const fd_desc_t *desc) {
     fd__iter_dir(scratch, desc->path, desc);
+}
+
+typedef struct {
+    arena_t *arena;
+    glob_t *desc;
+    str_list_t *list;
+} common_glob_t;
+
+void common__glob_iter(arena_t scratch, strview_t path, glob_t *desc) {
+    dir_t *dir = os_dir_open(&scratch, path);
+    dir_foreach (&scratch, it, dir) {
+        if (!desc->add_hidden && it->name.buf[0] == '.') {
+            continue;
+        }
+        strview_t name = strv(it->name);
+        if (strv_equals(name, strv(".")) || strv_equals(name, strv(".."))) {
+            continue;
+        }
+
+        str_t newpath = os_path_join(&scratch, path, name);
+        name = strv(newpath);
+        if (strv_starts_with_view(name, strv("./"))) {
+            name = strv_remove_prefix(name, 2);
+        }
+
+        if (glob_matches(desc->exp, name)) {
+            desc->cb(scratch, name, desc->udata);
+        }
+
+        if (it->type == DIRTYPE_DIR && desc->recursive) {
+            common__glob_iter(scratch, strv(newpath), desc);
+        }
+    }
+}
+
+void common_glob(arena_t scratch, glob_t *desc) {
+    if (!desc || !desc->cb) return;
+
+    strview_t dir;
+    os_file_split_path(desc->exp, &dir, NULL, NULL);
+    if (dir.len == 0) {
+        dir = strv("./");
+    }
+    common__glob_iter(scratch, dir, desc);
+}
+
+bool common_is_glob(strview_t exp) {
+    return strv_contains_either(exp, strv("*?["));
 }
 
 i64 common_get_tps(void) {

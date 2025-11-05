@@ -16,6 +16,7 @@ TOY_OPTION_DEFINE(fd) {
     bool exact_name;
     bool all_dirs;
     bool vim_mode;
+    bool recursive;
     strview_t dir;
     strview_t tofind;
     str_t tofind_original;
@@ -52,11 +53,12 @@ void fd_job(void *);
 void TOY_OPTION_PARSE(fd)(int argc, char **argv, TOY_OPTION(fd) *opt) {
     strview_t filename[1];
     i64 fname_count = 0;
+    bool not_recursive = false;
 
     usage_helper(
         "fd [options] NEEDLE",
         "Search for file. Needle can either be a filename "
-        "(e.g. file.txt) or a simple regex (e.g. hello.*)",
+        "(e.g. file.txt) or a glob pattern (e.g. *.c)",
         USAGE_DEFAULT,
         USAGE_EXTRA_PARAMS(filename, fname_count),
         argc, argv,
@@ -65,6 +67,11 @@ void TOY_OPTION_PARSE(fd)(int argc, char **argv, TOY_OPTION(fd) *opt) {
             "Search in {}.",
             "folder",
             USAGE_VALUE(opt->dir),
+        },
+        {
+            'n', "not-recursive",
+            "Don't search recursively",
+            USAGE_BOOL(not_recursive),
         },
         {
             'r', "regex",
@@ -104,6 +111,8 @@ void TOY_OPTION_PARSE(fd)(int argc, char **argv, TOY_OPTION(fd) *opt) {
         opt->thread_count = os_get_system_info().processor_count;
     }
 
+    opt->recursive = !not_recursive;
+
     opt->tofind = filename[0];
 }
  
@@ -117,26 +126,21 @@ void fd_check_name(arena_t scratch, strview_t name, bool is_dir) {
         current = strv(filename);
     }
 
-    usize index = 0;
-    usize match_len = fd_data.opt.tofind.len;
     if (fd_data.opt.exact_name) {
         if (!strv_ends_with_view(current, fd_data.opt.tofind)) {
             return;
         }
-        
-        index = current.len - fd_data.opt.tofind.len;
-    }
-    else if (fd_data.opt.is_regex) {
-        if (!rg_matches(fd_data.opt.tofind, current, !fd_data.opt.extended)) {
-            return;
-        }
-        index = STR_END;
-        match_len = 0;
     }
     else {
-        index = strv_find_view(current, fd_data.opt.tofind, 0);
-        if (index == STR_NONE) {
-            return;
+        if (fd_data.opt.extended) {
+            if (!rg_matches(fd_data.opt.tofind, current)) {
+                return;
+            }
+        }
+        else {
+            if (!glob_matches(fd_data.opt.tofind, current)) {
+                return;
+            }
         }
     }
 
@@ -144,23 +148,17 @@ void fd_check_name(arena_t scratch, strview_t name, bool is_dir) {
 
     strview_t icon = STRV_EMPTY;
 
+    strview_t dir, ext;
+    os_file_split_path(name, &dir, NULL, &ext);
+
     if (is_dir) {
         icon = icons[ICON_STYLE_NERD][ICON_FOLDER];
     }
     else {
-        strview_t dir, filename, ext;
-        os_file_split_path(name, &dir, &filename, &ext);
         icon = ext_to_ico(ext);
     }
 
-    strview_t before = strv_sub(name, 0, index);
-    strview_t match  = strv_sub(name, index, index + match_len);
-    strview_t after  = strv_sub(name, index + match_len, STR_END);
-
-    strview_t dir;
-    os_file_split_path(before, &dir, NULL, NULL);
-
-    strview_t filename = strv_sub(before, dir.len+1, STR_END);
+    strview_t filename = name;
 
     if (strv_equals(dir, strv("."))) {
         dir = STRV_EMPTY;
@@ -171,24 +169,18 @@ void fd_check_name(arena_t scratch, strview_t name, bool is_dir) {
         }
         str_t fmt = str_fmt(&scratch, "%v/", dir);
         dir = strv(fmt);
-    }
-
-    if (fd_data.opt.is_regex) {
-        match = filename;
-        filename = STRV_EMPTY;
+        filename = strv_remove_prefix(name, dir.len);
     }
 
     os_mutex_lock(fd_data.print_mtx);
         if (fd_data.opt.is_piped) {
-            println("%v%v%v%v", dir, filename, match, after);
+            println("%v%v", dir, filename);
         }
         else {
             println(
                 TERM_FG_DARK_GREY "%v" TERM_RESET
-                TERM_FG_YELLOW "%v" TERM_RESET
-                TERM_FG_GREEN "%v" TERM_RESET
-                TERM_FG_YELLOW "%v" TERM_RESET,
-                dir, filename, match, after
+                TERM_FG_GREEN "%v" TERM_RESET,
+                dir, filename
             );
         }
     os_mutex_unlock(fd_data.print_mtx);
@@ -217,7 +209,7 @@ void iter_dir(arena_t scratch, strview_t path) {
         
         fd_check_name(scratch, fullname, entry->type == DIRTYPE_DIR);
 
-        if (entry->type == DIRTYPE_DIR) {
+        if (entry->type == DIRTYPE_DIR && fd_data.opt.recursive) {
             if (!fd_data.opt.all_dirs && entry->name.buf[0] == '.') {
                 continue;
             }

@@ -270,12 +270,18 @@ close:
     }
 }
 
+#pragma warning(push)
+// warning: unreachable code (but forces us to return something??)
+#pragma warning(disable : 4702)
+
 int serve_thread_entry_point(u64 id, void *udata) {
     COLLA_UNUSED(id); 
     serve_entry_point(udata);
-    // unreachable
+
     return 0;
 }
+
+#pragma warning(pop)
 
 void TOY(serve)(int argc, char **argv) {
     net_init();
