@@ -244,7 +244,7 @@ void TOY(wc)(int argc, char **argv) {
     if (opt.print_bytes)   full_width += bytes_digits + 1;
     if (opt.print_chars)   full_width += chars_digits + 1;
     if (opt.print_max_len) full_width += length_digits + 1;
-    if (opt.print_fname)   full_width += wc__data[wc__count-1].filename.len;
+    if (opt.print_fname)   full_width += (int)wc__data[wc__count-1].filename.len;
 
     char spaces[256] = {0};
     memset(spaces, '-', sizeof(spaces) - 1);
