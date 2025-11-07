@@ -4,7 +4,7 @@
 
 TOY_SHORT_DESC(http, "Make an HTTP request.");
 
-TOY_OPTION_DEFINE(http) {
+typedef struct {
     http_method_e method;
     strview_t url;
     http_header_t *headers;
@@ -13,11 +13,11 @@ TOY_OPTION_DEFINE(http) {
     bool body_only;
     bool clean;
     bool verbose;
-};
+} http_opt_t;
 
 http_header_t *http_parse_header(arena_t *arena, strview_t arg);
 
-void TOY_OPTION_PARSE(http)(arena_t *arena, int argc, char **argv, TOY_OPTION(http) *opt) {
+void http_parse_opts(arena_t *arena, int argc, char **argv, http_opt_t *opt) {
     strview_t extra[1024] = {0};
     i64 extra_count = 0;
 
@@ -113,8 +113,8 @@ void TOY(http)(int argc, char **argv) {
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 
-    TOY_OPTION(http) opt = {0};
-    TOY_OPTION_PARSE(http)(&arena, argc, argv, &opt);
+    http_opt_t opt = {0};
+    http_parse_opts(&arena, argc, argv, &opt);
 
     if (common_is_piped(os_stdout())) {
         opt.body_only = true;

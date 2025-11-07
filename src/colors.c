@@ -11,13 +11,13 @@ typedef enum {
     COLOR_TYPE_256,
 } color_type_e;
 
-TOY_OPTION_DEFINE(colors) {
+typedef struct {
     color_type_e type;
     strview_t toprint[COLORS_MAX_COL];
     i64 count;
-};
+} colors_opt_t;
 
-void TOY_OPTION_PARSE(colors)(int argc, char **argv, TOY_OPTION(colors) *opt) {
+void colors_parse_opts(int argc, char **argv, colors_opt_t *opt) {
     bool is_extended = false;
 
     usage_helper(
@@ -116,59 +116,75 @@ void colors_print_256(void) {
     }
 }
 
-void color_print(strview_t hex) {
-    int r = 0, g = 0, b = 0;
-    
-    instream_t in = istr_init(hex);
-    if (istr_peek(&in) == '#') {
-        istr_skip(&in, 1);
-    }
-    strview_t red = istr_get_view_len(&in, 2);
-    strview_t green = istr_get_view_len(&in, 2);
-    strview_t blue = istr_get_view_len(&in, 2);
+typedef struct {
+    u8 r, g, b;
+} color_t;
+
+// parses either rgb(r, g, b) or [#]aabbcc
+color_t color_parse(strview_t value) {
+    color_t out = {0};
+    bool is_hex = value.buf[0] == '#' || char_is_hex(value.buf[0]);
+    instream_t in = istr_init(value);
+    if (is_hex) {
+        if (istr_peek(&in) == '#') {
+            istr_skip(&in, 1);
+        }
+        strview_t red = istr_get_view_len(&in, 2);
+        strview_t green = istr_get_view_len(&in, 2);
+        strview_t blue = istr_get_view_len(&in, 2);
 
 #define STRV_TO_HEX(v, out) do { \
-        char left = v.buf[0]; \
-        char right = v.buf[1]; \
+        char left = char_lower(v.buf[0]); \
+        char right = char_lower(v.buf[1]); \
         if (char_is_num(left)) left = left - '0'; \
-        if (left >= 'a' && left <= 'f') { \
-            left = (left - 'a') + 10; \
-        } \
-        if (left >= 'A' && left <= 'F') { \
-            left = (left - 'A') + 10; \
-        } \
+        else left = (left - 'a') + 10; \
         if (char_is_num(right)) right = right - '0'; \
-        if (right >= 'a' && right <= 'f') { \
-            right = (right - 'a') + 10; \
-        } \
-        if (right >= 'A' && right <= 'F') { \
-            right = (right - 'A') + 10; \
-        } \
+        else right = (right - 'a') + 10; \
         out = (left & 0x0F) | ((right << 4) & 0xF0); \
     } while (0)
 
-    STRV_TO_HEX(red, r);
-    STRV_TO_HEX(green, g);
-    STRV_TO_HEX(blue, b);
+        STRV_TO_HEX(red, out.r);
+        STRV_TO_HEX(green, out.g);
+        STRV_TO_HEX(blue, out.b);
 
-    print("foreground: \\x1b[38;3;%d;%d;%dm\n", r, g, b);
-    print("background: \\x1b[48;3;%d;%d;%dm\n", r, g, b);
+#undef STRV_TO_HEX
+    }
+    else {
+        istr_ignore_and_skip(&in, '(');
+        istr_skip_whitespace(&in);
+        istr_get_u8(&in, &out.r);
+        istr_ignore_and_skip(&in, ',');
+        istr_skip_whitespace(&in);
+        istr_get_u8(&in, &out.g);
+        istr_ignore_and_skip(&in, ',');
+        istr_skip_whitespace(&in);
+        istr_get_u8(&in, &out.b);
+    }
+    return out;
+}
 
-    print("\x1b[38;2;%d;%d;%dm", r, g, b);
+void color_print(strview_t value) {
+    color_t col = color_parse(value);
+    print("rgb: rgb(%u, %u, %u)\n", col.r, col.g, col.b);
+    print("hex: #%02x%02x%02x\n", col.r, col.g, col.b);
+    print("foreground: \\x1b[38;3;%d;%d;%dm\n", col.r, col.g, col.b);
+    print("background: \\x1b[48;3;%d;%d;%dm\n", col.r, col.g, col.b);
+
+    print("\x1b[38;2;%d;%d;%dm", col.r, col.g, col.b);
     print("Hello World" TERM_RESET);
     print("    ");
-    print("\x1b[48;2;%d;%d;%dm" TERM_FG_BLACK, r, g, b);
+    print("\x1b[48;2;%d;%d;%dm" TERM_FG_BLACK, col.r, col.g, col.b);
     print("Hello World");
     print(TERM_RESET " ");
-    print("\x1b[48;2;%d;%d;%dm" TERM_FG_WHITE, r, g, b);
+    print("\x1b[48;2;%d;%d;%dm" TERM_FG_WHITE, col.r, col.g, col.b);
     print("Hello World");
     print(TERM_RESET "\n");
 }
 
 void TOY(colors)(int argc, char **argv) {
-    TOY_OPTION(colors) opt = {0};
+    colors_opt_t opt = {0};
 
-    TOY_OPTION_PARSE(colors)(argc, argv, &opt);
+    colors_parse_opts(argc, argv, &opt);
 
     if (opt.count > 0) {
         for (int i = 0; i < opt.count; ++i) {

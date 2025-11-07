@@ -487,6 +487,7 @@ usize strv_rfind_view(strview_t ctx, strview_t view, usize from_right);
 bool char_is_space(char c);
 bool char_is_alpha(char c);
 bool char_is_num(char c);
+bool char_is_hex(char c);
 char char_lower(char c);
 char char_upper(char c);
 

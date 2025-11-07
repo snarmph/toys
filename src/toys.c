@@ -38,6 +38,8 @@
 #include "file.c"
 #include "less.c"
 
+#define TOY_DEFINE(name) { cstrv(#name), toy_##name##_short_desc, toy_##name, }
+
 typedef struct toy_t toy_t;
 struct toy_t {
     strview_t name;
@@ -96,6 +98,15 @@ int main(int argc, char **argv) {
             }
             return 0;
         }
+        else if (strv_equals(toy_name, strv("-d")) || 
+                 strv_equals(toy_name, strv("--desc"))
+        ) {
+            for (int i = 0; i < arrlen(toys); ++i) {
+                print("%v %v", toys[i].name, toys[i].desc);
+                if (i + 1 < arrlen(toys)) println("");
+            }
+            return 0;
+        }
 
         for (int i = 0; i < arrlen(toys); ++i) {
             if (strv_equals(toys[i].name, toy_name)) {
@@ -131,6 +142,7 @@ int main(int argc, char **argv) {
     println("");
     i64 spaces = max_length - strlen("-l, --list");
     println("-l, --list%*sPrint all the toys as a newline-delimited list.", spaces, "");
+    println("-d, --desc%*sPrint all the toys and their description as a newline-delimited list.", spaces, "");
 }
 
 // usage helpers

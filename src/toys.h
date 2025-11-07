@@ -2,21 +2,10 @@
 
 #include "colla/colla.h"
 #include "common.h"
-#include "term.h"
 
 #define TOY(name) toy_##name
-#define TOY_OPTION_DEFINE(name) \
-    typedef struct toy_option_##name##_t toy_option_##name##_t; \
-    struct toy_option_##name##_t
-
-#define TOY_OPTION(name) struct toy_option_##name##_t
-
-#define TOY_OPTION_PARSE(name) toy_##name##_parse_opt
-
-#define TOY_DEFINE(name) { cstrv(#name), toy_##name##_short_desc, toy_##name, }
 
 #define TOY_SHORT_DESC(name, desc) strview_t toy_##name##_short_desc = cstrv(desc)
-
 
 // return true if 'next' argument is consumed
 typedef bool (usage_callback_f)(strview_t next, void *userdata);

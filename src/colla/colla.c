@@ -508,6 +508,11 @@ bool char_is_num(char c) {
     return c >= '0' && c <= '9';
 }
 
+bool char_is_hex(char c) {
+    c = char_lower(c);
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+}
+
 char char_lower(char c) {
     return c >= 'A' && c <= 'Z' ? c + 32 : c;
 }

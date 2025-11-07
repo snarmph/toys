@@ -24,7 +24,7 @@ DWORD_PTR SHGetFileInfoW(LPCWSTR pszPath, DWORD dwFileAttributes, SHFILEINFOW *p
 
 TOY_SHORT_DESC(ls, "List directory contents.");
 
-TOY_OPTION_DEFINE(ls) {
+typedef struct {
     bool list_all;
     bool list_extra;
     bool list_dirs;
@@ -33,7 +33,7 @@ TOY_OPTION_DEFINE(ls) {
     strview_t dir;
     icon_style_e style;
     bool is_out_piped;
-};
+} ls_opt_t;
 
 typedef struct ls_entry_t ls_entry_t;
 struct ls_entry_t {
@@ -46,7 +46,7 @@ struct ls_entry_t {
     ls_entry_t *children;
 };
 
-void TOY_OPTION_PARSE(ls)(int argc, char **argv, TOY_OPTION(ls) *opt) {
+void ls_parse_opts(int argc, char **argv, ls_opt_t *opt) {
     strview_t dir[1] = { strv(".") };
     i64 dircount = 0;
 
@@ -151,7 +151,7 @@ str_t ls_get_file_info(arena_t *arena, strview_t fname) {
     return typename;
 }
 
-ls_entry_t *ls_add_dir(arena_t *arena, strview_t path, int depth, TOY_OPTION(ls) *opt) {
+ls_entry_t *ls_add_dir(arena_t *arena, strview_t path, int depth, ls_opt_t *opt) {
     ls_entry_t *head = NULL;
     dir_t *dir = os_dir_open(arena, path);
 
@@ -233,7 +233,7 @@ void ls_print_dir_piped(arena_t scratch, ls_entry_t *entries, strview_t parent) 
     }
 }
 
-void ls_print_dir(arena_t scratch, ls_entry_t *entries, int indent, TOY_OPTION(ls) *opt) {
+void ls_print_dir(arena_t scratch, ls_entry_t *entries, int indent, ls_opt_t *opt) {
     for_each (e, entries) {
         print(" %*s", indent * 4, "");
 
@@ -293,9 +293,9 @@ void ls_print_dir(arena_t scratch, ls_entry_t *entries, int indent, TOY_OPTION(l
 }
 
 void TOY(ls)(int argc, char **argv) {
-    TOY_OPTION(ls) opt = {0};
+    ls_opt_t opt = {0};
 
-    TOY_OPTION_PARSE(ls)(argc, argv, &opt);
+    ls_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

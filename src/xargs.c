@@ -7,7 +7,7 @@ TOY_SHORT_DESC(xargs, "Build and execute command lines from standard input.");
 
 #define XARGS_MAX_INITIAL_ARGS 1024
 
-TOY_OPTION_DEFINE(xargs) {
+typedef struct {
     strview_t arg_file;
     char delimiter;
     bool use_delim;
@@ -28,9 +28,9 @@ TOY_OPTION_DEFINE(xargs) {
     i64 total_args_shared;
     i64 top_job;
     os_barrier_t thread_barrier;
-};
+} xargs_opt_t;
 
-void TOY_OPTION_PARSE(xargs)(int argc, char **argv, TOY_OPTION(xargs) *opt) {
+void xargs_parse_opts(int argc, char **argv, xargs_opt_t *opt) {
     strview_t delimiter = STRV_EMPTY;
     bool null = false;
 
@@ -136,7 +136,7 @@ void TOY_OPTION_PARSE(xargs)(int argc, char **argv, TOY_OPTION(xargs) *opt) {
     }
 }
 
-strv_list_t *xargs_grab_input(arena_t *arena, TOY_OPTION(xargs) *opt) {
+strv_list_t *xargs_grab_input(arena_t *arena, xargs_opt_t *opt) {
     str_t args = STR_EMPTY;
     if (opt->arg_file.len) {
         args = os_file_read_all_str(arena, opt->arg_file);
@@ -217,7 +217,7 @@ strv_list_t *xargs_grab_input(arena_t *arena, TOY_OPTION(xargs) *opt) {
     return out;
 }
 
-void xargs_run(arena_t scratch, strv_list_t *args, TOY_OPTION(xargs) *opt) {
+void xargs_run(arena_t scratch, strv_list_t *args, xargs_opt_t *opt) {
     bool replace = opt->replace.len > 0;
 
     os_cmd_t *cmd = NULL;
@@ -306,7 +306,7 @@ void xargs_run(arena_t scratch, strv_list_t *args, TOY_OPTION(xargs) *opt) {
 
 void xargs_entry_point(void *udata) {
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
-    TOY_OPTION(xargs) *opt = udata;
+    xargs_opt_t *opt = udata;
 
     strview_t *args = NULL;
     i64 args_count = 0;
@@ -378,8 +378,8 @@ int xargs_thread_entry_point(u64 id, void *udata) {
 
 void TOY(xargs)(int argc, char **argv) {
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
-    TOY_OPTION(xargs) opt = {0};
-    TOY_OPTION_PARSE(xargs)(argc, argv, &opt);
+    xargs_opt_t opt = {0};
+    xargs_parse_opts(argc, argv, &opt);
 
     opt.args = xargs_grab_input(&arena, &opt);
     if (opt.dont_run_on_empty && !opt.args) {

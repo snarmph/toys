@@ -68,13 +68,13 @@ struct {
     .search_cursor = -1,
 };
 
-TOY_OPTION_DEFINE(xxd) {
+typedef struct {
     bool dump;
     bool nocolors;
     strview_t filename;
-};
+} xxd_opt_t;
 
-void TOY_OPTION_PARSE(xxd)(int argc, char **argv, TOY_OPTION(xxd) *opt) {
+void xxd_parse_opts(int argc, char **argv, xxd_opt_t *opt) {
     strview_t files[1] = {0};
     i64 file_count = 0;
 
@@ -584,7 +584,7 @@ bool xxd_event(arena_t *arena, strview_t key, void *userdata) {
 #undef cursor_advance
 #undef cursor_page
 
-void xxd_dump(TOY_OPTION(xxd) *opt) {
+void xxd_dump(xxd_opt_t *opt) {
     buffer_t buf = xxd_state.data;
     strview_t pos_col = opt->nocolors ? STRV_EMPTY : strv(TERM_FG_YELLOW);
     for (usize i = 0; i < buf.len; i += 16) {
@@ -629,8 +629,8 @@ void xxd_dump(TOY_OPTION(xxd) *opt) {
 }
 
 void TOY(xxd)(int argc, char **argv) {
-    TOY_OPTION(xxd) opt = {0};
-    TOY_OPTION_PARSE(xxd)(argc, argv, &opt);
+    xxd_opt_t opt = {0};
+    xxd_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

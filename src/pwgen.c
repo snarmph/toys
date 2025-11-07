@@ -7,7 +7,7 @@
 
 TOY_SHORT_DESC(pwgen, "Generate human-readable random passwords.");
 
-TOY_OPTION_DEFINE(pwgen) {
+typedef struct {
     bool no_numbers;
     bool one_per_line;
     bool no_capital;
@@ -16,9 +16,9 @@ TOY_OPTION_DEFINE(pwgen) {
     bool no_vowels;
     bool symbols;
     strview_t avoid;
-};
+} pwgen_opt_t;
 
-void TOY_OPTION_PARSE(pwgen)(int argc, char **argv, TOY_OPTION(pwgen) *opt) {
+void pwgen_parse_opts(int argc, char **argv, pwgen_opt_t *opt) {
     usage_helper(
         "pwgen [option]",
         "Generate human-readable random passwords. Default "
@@ -67,8 +67,8 @@ void TOY_OPTION_PARSE(pwgen)(int argc, char **argv, TOY_OPTION(pwgen) *opt) {
 }
 
 void TOY(pwgen)(int argc, char **argv) {
-    TOY_OPTION(pwgen) opt = {0};
-    TOY_OPTION_PARSE(pwgen)(argc, argv, &opt);
+    pwgen_opt_t opt = {0};
+    pwgen_parse_opts(argc, argv, &opt);
 
     char chars[1024] = {0};
     int char_count = 0;

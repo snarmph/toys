@@ -6,7 +6,7 @@
 
 TOY_SHORT_DESC(head, "Output the first 10 lines of a file/s.");
 
-TOY_OPTION_DEFINE(head) {
+typedef struct {
     bool in_piped;
     i64 bytes;
     i64 lines;
@@ -15,12 +15,12 @@ TOY_OPTION_DEFINE(head) {
     char line_delim;
     strview_t files[HEAD_MAX_FILES];
     i64 files_count;
-}; 
+} head_opt_t; 
 
 i64 head__count = 0;
 bool head__print_names = false;
 
-void TOY_OPTION_PARSE(head)(int argc, char **argv, TOY_OPTION(head) *opt) {
+void head_parse_opts(int argc, char **argv, head_opt_t *opt) {
     bool zero_terminated = false;
 
     opt->in_piped = common_is_piped(os_stdin());
@@ -73,7 +73,7 @@ void TOY_OPTION_PARSE(head)(int argc, char **argv, TOY_OPTION(head) *opt) {
     }
 }
 
-void head_tail(arena_t scratch, oshandle_t fp, TOY_OPTION(head) *opt) {
+void head_tail(arena_t scratch, oshandle_t fp, head_opt_t *opt) {
     i64 lines = -opt->lines;
     i64 bytes = -opt->bytes;
 
@@ -113,7 +113,7 @@ void head_tail(arena_t scratch, oshandle_t fp, TOY_OPTION(head) *opt) {
     }
 }
 
-void head_impl(arena_t scratch, oshandle_t fp, TOY_OPTION(head) *opt) {
+void head_impl(arena_t scratch, oshandle_t fp, head_opt_t *opt) {
     i64 lines_rem = opt->lines;
     i64 bytes_rem = opt->bytes;
 
@@ -153,7 +153,7 @@ void head_impl(arena_t scratch, oshandle_t fp, TOY_OPTION(head) *opt) {
 }
 
 void head__glob(arena_t scratch, strview_t fname, void *udata) {
-    TOY_OPTION(head) *opt = udata;
+    head_opt_t *opt = udata;
    
     oshandle_t fp = os_file_open(fname, OS_FILE_READ);
     if (!os_handle_valid(fp)) {
@@ -171,9 +171,9 @@ void head__glob(arena_t scratch, strview_t fname, void *udata) {
 }
 
 void TOY(head)(int argc, char **argv) {
-    TOY_OPTION(head) opt = { .line_delim = '\n' };
+    head_opt_t opt = { .line_delim = '\n' };
 
-    TOY_OPTION_PARSE(head)(argc, argv, &opt);
+    head_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
     glob_t glob_desc = {

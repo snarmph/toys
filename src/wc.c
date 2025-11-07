@@ -6,7 +6,7 @@ TOY_SHORT_DESC(wc, "Print newline, word, and byte counts for each file .");
 
 #define WC_MAX_ITEMS 1024
 
-TOY_OPTION_DEFINE(wc) {
+typedef struct {
     bool in_piped;
     strview_t files[WC_MAX_ITEMS];
     i64 file_count;
@@ -19,7 +19,7 @@ TOY_OPTION_DEFINE(wc) {
     bool print_total;
 
     arena_t name_arena;
-};
+} wc_opt_t;
 
 typedef struct wc_info_t wc_info_t;
 struct wc_info_t {
@@ -34,7 +34,7 @@ struct wc_info_t {
 wc_info_t wc__data[WC_MAX_ITEMS * 2];
 int wc__count = 0;
 
-void TOY_OPTION_PARSE(wc)(int argc, char **argv, TOY_OPTION(wc) *opt) {
+void wc_parse_opts(int argc, char **argv, wc_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
 
     usage_helper(
@@ -106,7 +106,7 @@ i64 wc_words(strview_t line) {
     return count;
 }
 
-void wc_count(arena_t scratch, oshandle_t fp, wc_info_t *out, TOY_OPTION(wc) *opt) {
+void wc_count(arena_t scratch, oshandle_t fp, wc_info_t *out, wc_opt_t *opt) {
     str_t data = common_read_buffered(&scratch, fp);
     out->bytes = data.len;
 
@@ -134,7 +134,7 @@ void wc_count(arena_t scratch, oshandle_t fp, wc_info_t *out, TOY_OPTION(wc) *op
 }
 
 void wc__glob(arena_t scratch, strview_t fname, void *udata) {
-    TOY_OPTION(wc) *opt = udata;
+    wc_opt_t *opt = udata;
     wc_info_t *info = &wc__data[wc__count++];
 
     info->filename = strv(str(&opt->name_arena, fname));
@@ -153,8 +153,8 @@ int wc_count_digits(i64 number) {
 }
 
 void TOY(wc)(int argc, char **argv) {
-    TOY_OPTION(wc) opt = {0};
-    TOY_OPTION_PARSE(wc)(argc, argv, &opt);
+    wc_opt_t opt = {0};
+    wc_parse_opts(argc, argv, &opt);
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 
     opt.name_arena = arena_make(ARENA_VIRTUAL, GB(1));

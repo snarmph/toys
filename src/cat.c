@@ -32,7 +32,7 @@ struct cat_hg_state_t {
     i64 in_str;
 };
 
-TOY_OPTION_DEFINE(cat) {
+typedef struct {
     bool plain;
     bool nocolor;
     bool in_piped;
@@ -40,7 +40,7 @@ TOY_OPTION_DEFINE(cat) {
     highlighters_e lang;
     strview_t files[CAT_MAX_FILES];
     i64 file_count;
-};
+} cat_opt_t;
 
 typedef struct cat_lang_t cat_lang_t;
 struct cat_lang_t {
@@ -67,7 +67,7 @@ cat_lang_t cat_recognised_langs[] = {
     { HG_XML,   cstrv(".xml") },
 };
 
-void TOY_OPTION_PARSE(cat)(int argc, char **argv, TOY_OPTION(cat) *opt) {
+void cat_parse_opts(int argc, char **argv, cat_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
     opt->out_piped = common_is_piped(os_stdout());
 
@@ -316,7 +316,7 @@ void cat_print_ini(arena_t scratch, strview_t line, cat_hg_state_t *state) {
     }
 }
 
-void cat_print(arena_t scratch, oshandle_t fp, TOY_OPTION(cat) *opt) {
+void cat_print(arena_t scratch, oshandle_t fp, cat_opt_t *opt) {
     char buffer[KB(10)] = {0};
 
     if (!opt->plain && !os_handle_match(fp, os_stdin())) {
@@ -417,8 +417,8 @@ void cat_print(arena_t scratch, oshandle_t fp, TOY_OPTION(cat) *opt) {
 }
 
 void TOY(cat)(int argc, char **argv) {
-    TOY_OPTION(cat) opt = {0};
-    TOY_OPTION_PARSE(cat)(argc, argv, &opt);
+    cat_opt_t opt = {0};
+    cat_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

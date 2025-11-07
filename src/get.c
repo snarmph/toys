@@ -7,7 +7,7 @@ TOY_SHORT_DESC(get, "Download a file from the internet.");
 
 #define GET_MAX_URLS 10000
 
-TOY_OPTION_DEFINE(get) {
+typedef struct {
     bool quiet;
     strview_t input;
     strview_t base;
@@ -22,9 +22,9 @@ TOY_OPTION_DEFINE(get) {
     bool out_piped;
 
     os_barrier_t barrier;
-};
+} get_opt_t;
 
-void TOY_OPTION_PARSE(get)(int argc, char **argv, TOY_OPTION(get) *opt) {
+void get_parse_opts(int argc, char **argv, get_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
     opt->out_piped = common_is_piped(os_stdout());
 
@@ -100,7 +100,7 @@ struct get_info_t {
     i64 index;
     strview_t url;
     strview_t outfile;
-    TOY_OPTION(get) *opt;
+    get_opt_t *opt;
     i64 file_size;
     i64 received;
 };
@@ -123,7 +123,7 @@ void get_http_cb(http_header_t *headers, strview_t chunk, void *udata) {
 
 bool get_download_file(arena_t scratch, get_info_t *info) {
     http_res_t res = {0};
-    TOY_OPTION(get) *opt = info->opt;
+    get_opt_t *opt = info->opt;
     for (
         int i = 0; 
         res.status_code != 200 && (opt->tries == 0 || i < opt->tries);
@@ -148,7 +148,7 @@ bool get_download_file(arena_t scratch, get_info_t *info) {
     return false;
 }
 
-void get_entry_point(TOY_OPTION(get) *opt) {
+void get_entry_point(get_opt_t *opt) {
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 
     i64range_t range = os_lane_range(opt->url_count);
@@ -179,15 +179,15 @@ void get_entry_point(TOY_OPTION(get) *opt) {
 
 int get_thread_entry(u64 id, void *udata) {
     COLLA_UNUSED(id);
-    TOY_OPTION(get) *opt = udata;
+    get_opt_t *opt = udata;
     os_barrier_sync(&opt->barrier);
     get_entry_point(opt);
     return 0;
 }
 
 void TOY(get)(int argc, char **argv) {
-    TOY_OPTION(get) opt = {0};
-    TOY_OPTION_PARSE(get)(argc, argv, &opt);
+    get_opt_t opt = {0};
+    get_parse_opts(argc, argv, &opt);
 
     net_init();
 

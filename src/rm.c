@@ -14,7 +14,7 @@ TOY_SHORT_DESC(rm, "Move files or directories to trash bin.");
 
 #define RM_MAX_ITEMS 1024
 
-TOY_OPTION_DEFINE(rm) {
+typedef struct {
     bool dry_run;
     bool recursive;
     bool force;
@@ -22,12 +22,12 @@ TOY_OPTION_DEFINE(rm) {
     bool ignore;
     strview_t rg[RM_MAX_ITEMS];
     i64 rg_count;
-};
+} rm_opt_t;
 
 typedef struct {
     IFileOperation *pfo;
     int count;
-    TOY_OPTION(rm) *opt;
+    rm_opt_t *opt;
 } rm_delete_data_t;
 
 typedef struct rm_sink_t rm_sink_t;
@@ -57,7 +57,7 @@ rm_sink_t gsink = { .ref_count = 1, .lpVtbl = &rm_sink_vtable };
 
 #define check(hr, fn) if (FAILED(hr)) fatal("call to " #fn " failed: %u", hr)
 
-void TOY_OPTION_PARSE(rm)(int argc, char **argv, TOY_OPTION(rm) *opt) {
+void rm_parse_opts(int argc, char **argv, rm_opt_t *opt) {
     usage_helper(
         "rm FILE/FOLDER...",
         "Move files or directories to trash bin",
@@ -124,9 +124,9 @@ void remove_file_or_dir(arena_t scratch, strview_t path, void *udata) {
 }
 
 void TOY(rm)(int argc, char **argv) {
-    TOY_OPTION(rm) opt = {0};
+    rm_opt_t opt = {0};
 
-    TOY_OPTION_PARSE(rm)(argc, argv, &opt);
+    rm_parse_opts(argc, argv, &opt);
     
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

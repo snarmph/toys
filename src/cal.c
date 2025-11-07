@@ -8,13 +8,13 @@
 
 TOY_SHORT_DESC(cal, "Print a calendar.");
 
-TOY_OPTION_DEFINE(cal) {
+typedef struct {
     int day;
     int month;
     int year;
     int monthlen;
     struct tm current;
-};
+} cal_opt_t;
 
 typedef struct {
     char lines[10][CAL_LINE_LEN];
@@ -35,7 +35,7 @@ strview_t month_names[] = {
     cstrv("December"),
 };
 
-void TOY_OPTION_PARSE(cal)(int argc, char **argv, TOY_OPTION(cal) *opt) {
+void cal_parse_opts(int argc, char **argv, cal_opt_t *opt) {
     strview_t args[3];
     i64 arg_count = 0;
 
@@ -122,7 +122,7 @@ int month_first_line(char *line, int wday) {
     return d;
 }
 
-void month_days(char lines[10][CAL_LINE_LEN], struct tm* tm, TOY_OPTION(cal) *opt) {
+void month_days(char lines[10][CAL_LINE_LEN], struct tm* tm, cal_opt_t *opt) {
     int month = tm->tm_mon;
     int year  = tm->tm_year + 1900;
     int monthlen = month_length(month, year);
@@ -157,7 +157,7 @@ void month_days(char lines[10][CAL_LINE_LEN], struct tm* tm, TOY_OPTION(cal) *op
     }
 }
 
-void month_render(month_t *m, struct tm *tm, TOY_OPTION(cal) *opt) {
+void month_render(month_t *m, struct tm *tm, cal_opt_t *opt) {
     int month = tm->tm_mon;
     int year  = tm->tm_year + 1900;
 
@@ -166,7 +166,7 @@ void month_render(month_t *m, struct tm *tm, TOY_OPTION(cal) *opt) {
     month_days(&m->lines[2], tm, opt);
 }
 
-void print_month(int mon, int year, TOY_OPTION(cal) *opt) {
+void print_month(int mon, int year, cal_opt_t *opt) {
     struct tm tm = {
         .tm_year = year - 1900,
         .tm_mon = mon - 1,
@@ -191,7 +191,7 @@ void print_month(int mon, int year, TOY_OPTION(cal) *opt) {
     }
 }
 
-void print_year(int year, TOY_OPTION(cal) *opt) {
+void print_year(int year, cal_opt_t *opt) {
     struct tm tm = {
         .tm_year = year - 1900,
     };
@@ -229,8 +229,8 @@ void print_year(int year, TOY_OPTION(cal) *opt) {
 }
 
 void TOY(cal)(int argc, char **argv) {
-    TOY_OPTION(cal) opt = {0};
-    TOY_OPTION_PARSE(cal)(argc, argv, &opt);
+    cal_opt_t opt = {0};
+    cal_parse_opts(argc, argv, &opt);
 
     time_t now = time(0);
     localtime_s(&opt.current, &now);

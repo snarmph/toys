@@ -7,10 +7,10 @@ TOY_SHORT_DESC(time, "Time a simple command.");
 
 #define TIME_MAX_ARGS 1024
 
-TOY_OPTION_DEFINE(time) {
+typedef struct {
     strview_t args[TIME_MAX_ARGS];
     i64 arg_count;
-};
+} time_opt_t;
 
 void time_print(double time_taken) {
     strview_t suffix[] = {
@@ -31,7 +31,7 @@ void time_print(double time_taken) {
 }
 
 void TOY(time)(int argc, char **argv) {
-    TOY_OPTION(time) opt = {0};
+    time_opt_t opt = {0};
     usage_helper(
         "time COMMAND [ARGS]...", 
         "The time command runs the specified program command with "

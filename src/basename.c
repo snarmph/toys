@@ -6,13 +6,13 @@
 
 TOY_SHORT_DESC(basename, "Return non-directory portion of a pathname removing suffix.");
 
-TOY_OPTION_DEFINE(basename) {
+typedef struct {
     strview_t names[BASENAME_MAX_NAMES];
     i64 name_count;
     bool in_piped;
-};
+} basename_opt_t ;
 
-void TOY_OPTION_PARSE(basename)(int argc, char **argv, TOY_OPTION(basename) *opt) {
+void basename_parse_opts(int argc, char **argv, basename_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
 
     usage_helper(
@@ -25,8 +25,8 @@ void TOY_OPTION_PARSE(basename)(int argc, char **argv, TOY_OPTION(basename) *opt
 }
 
 void TOY(basename)(int argc, char **argv) {
-    TOY_OPTION(basename) opt = {0};
-    TOY_OPTION_PARSE(basename)(argc, argv, &opt);
+    basename_opt_t opt = {0};
+    basename_parse_opts(argc, argv, &opt);
 
     if (opt.in_piped) {
         arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));

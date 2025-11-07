@@ -58,16 +58,16 @@ strview_t cksum_algo_names[CKSUM_ALGO__COUNT] = {
     [CKSUM_ALGO_SHA512]  = cstrv("sha512"),
 };
 
-TOY_OPTION_DEFINE(cksum) {
+typedef struct {
     strview_t files[1024];
     i64 file_count;
     cksum_output_e output;
     cksum_algo_e algo;
     bool zero;
     bool quiet;
-};
+} cksum_opt_t;
 
-void TOY_OPTION_PARSE(cksum)(int argc, char **argv, TOY_OPTION(cksum) *opt) {
+void cksum_parse_opts(int argc, char **argv, cksum_opt_t *opt) {
     strview_t algo = STRV_EMPTY;
 
     bool base64 = false, raw = false;
@@ -142,7 +142,7 @@ void TOY_OPTION_PARSE(cksum)(int argc, char **argv, TOY_OPTION(cksum) *opt) {
 // }
 
 
-void *cksum_crc32b_init(arena_t *arena, TOY_OPTION(cksum) *opt) {
+void *cksum_crc32b_init(arena_t *arena, cksum_opt_t *opt) {
     u32 *crc_table = alloc(arena, u32, 256);
     for (u32 i = 0; i < 256; ++i) {
         u32 c = i << 24;
@@ -156,7 +156,7 @@ void *cksum_crc32b_init(arena_t *arena, TOY_OPTION(cksum) *opt) {
     return crc_table;
 }
 
-u32 cksum_crc32b(arena_t scratch, buffer_t buf, void *udata, TOY_OPTION(cksum) *opt) {
+u32 cksum_crc32b(arena_t scratch, buffer_t buf, void *udata, cksum_opt_t *opt) {
     u32 *crc_table = udata;
     u32 cksum = 0;
     for (usize i = 0; i < buf.len; ++i) {
@@ -172,33 +172,33 @@ u32 cksum_crc32b(arena_t scratch, buffer_t buf, void *udata, TOY_OPTION(cksum) *
 }
 
 
-bool cksum_md5(TOY_OPTION(cksum) *opt) {
+bool cksum_md5(cksum_opt_t *opt) {
     return true;
 }
 
-bool cksum_sha1(TOY_OPTION(cksum) *opt) {
+bool cksum_sha1(cksum_opt_t *opt) {
     return true;
 }
 
-bool cksum_sha224(TOY_OPTION(cksum) *opt) {
+bool cksum_sha224(cksum_opt_t *opt) {
     return true;
 }
 
-bool cksum_sha256(TOY_OPTION(cksum) *opt) {
+bool cksum_sha256(cksum_opt_t *opt) {
     return true;
 }
 
-bool cksum_sha384(TOY_OPTION(cksum) *opt) {
+bool cksum_sha384(cksum_opt_t *opt) {
     return true;
 }
 
-bool cksum_sha512(TOY_OPTION(cksum) *opt) {
+bool cksum_sha512(cksum_opt_t *opt) {
     return true;
 }
 
 void TOY(cksum)(int argc, char **argv) {
-    TOY_OPTION(cksum) opt = {0};
-    TOY_OPTION_PARSE(cksum)(argc, argv, &opt);
+    cksum_opt_t opt = {0};
+    cksum_parse_opts(argc, argv, &opt);
     
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

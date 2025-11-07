@@ -6,7 +6,7 @@
 
 TOY_SHORT_DESC(tail, "Output the last 10 lines of a file/s.");
 
-TOY_OPTION_DEFINE(tail) {
+typedef struct {
     bool in_piped;
     i64 bytes;
     i64 lines;
@@ -18,12 +18,12 @@ TOY_OPTION_DEFINE(tail) {
     char line_delim;
     strview_t files[TAIL_MAX_FILES];
     i64 files_count;
-};
+} tail_opt_t;
 
 bool tail__print_names = false;
 i64 tail__count = 0;
 
-void TOY_OPTION_PARSE(tail)(int argc, char **argv, TOY_OPTION(tail) *opt) {
+void tail_parse_opts(int argc, char **argv, tail_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
 
     usage_helper(
@@ -85,7 +85,7 @@ void TOY_OPTION_PARSE(tail)(int argc, char **argv, TOY_OPTION(tail) *opt) {
     }
 }
 
-str_t tail_impl(arena_t *arena, oshandle_t fp, TOY_OPTION(tail) *opt) {
+str_t tail_impl(arena_t *arena, oshandle_t fp, tail_opt_t *opt) {
     i64 lines = opt->lines;
     i64 bytes = opt->bytes;
 
@@ -242,7 +242,7 @@ bool tail_wait(int ms) {
 }
 
 void tail__glob(arena_t scratch, strview_t fname, void *udata) {
-    TOY_OPTION(tail) *opt = udata;
+    tail_opt_t *opt = udata;
 
     oshandle_t fp = os_handle_zero();
     do {
@@ -265,9 +265,9 @@ void tail__glob(arena_t scratch, strview_t fname, void *udata) {
 }
 
 void TOY(tail)(int argc, char **argv) {
-    TOY_OPTION(tail) opt = { .line_delim = '\n' };
+    tail_opt_t opt = { .line_delim = '\n' };
 
-    TOY_OPTION_PARSE(tail)(argc, argv, &opt);
+    tail_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

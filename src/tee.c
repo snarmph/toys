@@ -6,13 +6,13 @@
 
 TOY_SHORT_DESC(tee, "Copy standard input to each FILE, and also to standard output.");
 
-TOY_OPTION_DEFINE(tee) {
+typedef struct {
     bool in_piped;
     strview_t files[TEE_MAX_FILES];
     i64 file_count;
-};
+} tee_opt_t;
 
-void TOY_OPTION_PARSE(tee)(int argc, char **argv, TOY_OPTION(tee) *opt) {
+void tee_parse_opts(int argc, char **argv, tee_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
 
     if (!opt->in_piped) {
@@ -29,8 +29,8 @@ void TOY_OPTION_PARSE(tee)(int argc, char **argv, TOY_OPTION(tee) *opt) {
 }
 
 void TOY(tee)(int argc, char **argv) {
-    TOY_OPTION(tee) opt = {0};
-    TOY_OPTION_PARSE(tee)(argc, argv, &opt);
+    tee_opt_t opt = {0};
+    tee_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
     str_t input = common_read_buffered(&arena, os_stdin());

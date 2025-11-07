@@ -11,11 +11,11 @@ typedef enum {
     ACPI_SHOW_END_TIME       = 1 << 4,
 } acpi_flags_e;
 
-TOY_OPTION_DEFINE(acpi) {
+typedef struct {
     acpi_flags_e flags;
-};
+} acpi_opt_t;
 
-void TOY_OPTION_PARSE(acpi)(int argc, char **argv, TOY_OPTION(acpi) *opt) {
+void acpi_parse_opts(int argc, char **argv, acpi_opt_t *opt) {
     bool rem        = false;
     bool end        = false;
     bool everything = false;
@@ -49,8 +49,8 @@ void TOY_OPTION_PARSE(acpi)(int argc, char **argv, TOY_OPTION(acpi) *opt) {
 }
 
 void TOY(acpi)(int argc, char **argv) {
-    TOY_OPTION(acpi) opt = {0};
-    TOY_OPTION_PARSE(acpi)(argc, argv, &opt);
+    acpi_opt_t opt = {0};
+    acpi_parse_opts(argc, argv, &opt);
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 
     SYSTEM_POWER_STATUS ps = {0};

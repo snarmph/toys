@@ -12,7 +12,7 @@ _Static_assert(sizeof(u32) == sizeof(DWORD), "");
 
 TOY_SHORT_DESC(unlock, "Unlock files or folders from other programs.");
 
-TOY_OPTION_DEFINE(unlock) {
+typedef struct {
     strview_t files[UNLOCK_MAX_FILES];
     i64 file_count;
     bool in_piped;
@@ -21,9 +21,9 @@ TOY_OPTION_DEFINE(unlock) {
     bool quiet;
 
     DWORD session;
-};
+} unlock_opt_t;
 
-void TOY_OPTION_PARSE(unlock)(int argc, char **argv, TOY_OPTION(unlock) *opt) {
+void unlock_parse_opts(int argc, char **argv, unlock_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
     usage_helper(
         "unlock [options] [FILE]...", 
@@ -51,7 +51,7 @@ void TOY_OPTION_PARSE(unlock)(int argc, char **argv, TOY_OPTION(unlock) *opt) {
 }
 
 void unlock_file(arena_t scratch, strview_t filename, void *udata) {
-    TOY_OPTION(unlock) *opt = udata;
+    unlock_opt_t *opt = udata;
     str16_t fname = strv_to_str16(&scratch, filename);
     const u16 *files[] = { fname.buf };
     DWORD error = RmRegisterResources(
@@ -137,8 +137,8 @@ void unlock_file(arena_t scratch, strview_t filename, void *udata) {
 }
 
 void TOY(unlock)(int argc, char **argv) {
-    TOY_OPTION(unlock) opt = {0};
-    TOY_OPTION_PARSE(unlock)(argc, argv, &opt);
+    unlock_opt_t opt = {0};
+    unlock_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
     if (opt.in_piped) {

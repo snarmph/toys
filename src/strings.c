@@ -13,15 +13,15 @@ typedef enum {
     OFFSET_HEX,
 } ss_offset_type_e;
 
-TOY_OPTION_DEFINE(strings) {
+typedef struct {
     bool show_filename;
     i64 min_len;
     ss_offset_type_e off;
     strview_t files[SS_MAX_FILES];
     i64 file_count;
-};
+} strings_opt_t;
 
-void TOY_OPTION_PARSE(strings)(int argc, char **argv, TOY_OPTION(strings) *opt) {
+void strings_parse_opts(int argc, char **argv, strings_opt_t *opt) {
     bool decimal = false, octal = false, hex = false;
     strview_t radix = {0};
 
@@ -107,7 +107,7 @@ struct {
     int digits;
 } ss_state = {0};
 
-void ss_print_buf(strview_t fname, TOY_OPTION(strings) *opt) {
+void ss_print_buf(strview_t fname, strings_opt_t *opt) {
     if (ss_state.start_of_line) {
         ss_state.start_of_line = false;
         if (opt->show_filename) {
@@ -129,7 +129,7 @@ void ss_print_buf(strview_t fname, TOY_OPTION(strings) *opt) {
     print("%.*s", ss_state.count, ss_state.printbuf);
 }
 
-int ss_get_digits(usize size, TOY_OPTION(strings) *opt) {
+int ss_get_digits(usize size, strings_opt_t *opt) {
     int digits = 1;
     usize size_rem = size;
     int base = 10;
@@ -146,9 +146,9 @@ int ss_get_digits(usize size, TOY_OPTION(strings) *opt) {
 }
 
 void TOY(strings)(int argc, char **argv) {
-    TOY_OPTION(strings) opt = {0};
+    strings_opt_t opt = {0};
 
-    TOY_OPTION_PARSE(strings)(argc, argv, &opt);
+    strings_parse_opts(argc, argv, &opt);
 
     ss_state.arena = arena_make(ARENA_VIRTUAL, GB(1));
 

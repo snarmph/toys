@@ -8,16 +8,16 @@
 
 TOY_SHORT_DESC(serve, "Serve contents of directory as static web pages.");
 
-TOY_OPTION_DEFINE(serve) {
+typedef struct {
     strview_t dir;
     i64 threads;
     u16 port;
     bool verbose;
     os_barrier_t thread_barrier;
     socket_t server_socket;
-};
+} serve_opt_t;
 
-void TOY_OPTION_PARSE(serve)(arena_t scratch, int argc, char **argv, TOY_OPTION(serve) *opt) {
+void serve_parse_opts(arena_t scratch, int argc, char **argv, serve_opt_t *opt) {
     strview_t dirs[1] = {0};
     i64 dircount = 0;
 
@@ -170,7 +170,7 @@ void send_file(arena_t scratch, oshandle_t fp, usize size, socket_t client) {
 
 void serve_entry_point(void *udata) {
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
-    TOY_OPTION(serve) *opt = udata;
+    serve_opt_t *opt = udata;
 
     if (os_thread_id == 0) {
         opt->server_socket = sk_open(SOCK_TCP);
@@ -288,8 +288,8 @@ void TOY(serve)(int argc, char **argv) {
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 
-    TOY_OPTION(serve) opt = {0};
-    TOY_OPTION_PARSE(serve)(arena, argc, argv, &opt);
+    serve_opt_t opt = {0};
+    serve_parse_opts(arena, argc, argv, &opt);
 
     if (opt.verbose) {
         os_log_set_options(OS_LOG_NOFILE);

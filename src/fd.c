@@ -10,7 +10,7 @@ struct jobdata_t {
     str_t dir;
 };
 
-TOY_OPTION_DEFINE(fd) {
+typedef struct {
     bool case_sensitive;
     bool extended;
     bool exact_name;
@@ -24,7 +24,7 @@ TOY_OPTION_DEFINE(fd) {
     bool is_piped;
     bool is_regex;
     i64 thread_count;
-};
+} fd_opt_t;
 
 typedef struct worker_t worker_t;
 struct {
@@ -40,7 +40,7 @@ struct {
     arena_t *scratch_arenas;
     oshandle_t print_mtx;
 
-    TOY_OPTION(fd) opt;
+    fd_opt_t opt;
 } fd_data = {
     .curdir = cstrv("."),
     .prevdir = cstrv(".."),
@@ -50,7 +50,7 @@ struct {
 
 void fd_job(void *);
 
-void TOY_OPTION_PARSE(fd)(int argc, char **argv, TOY_OPTION(fd) *opt) {
+void fd_parse_opts(int argc, char **argv, fd_opt_t *opt) {
     strview_t filename[1];
     i64 fname_count = 0;
     bool not_recursive = false;
@@ -226,7 +226,7 @@ void fd_job(void *userdata) {
 }
 
 void TOY(fd)(int argc, char **argv) {
-    TOY_OPTION_PARSE(fd)(argc, argv, &fd_data.opt);
+    fd_parse_opts(argc, argv, &fd_data.opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 

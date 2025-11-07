@@ -6,15 +6,15 @@ TOY_SHORT_DESC(base64, "base64 encode/decode data and print to standard output")
 
 #define BASE64_MAX_ARGS 10000
 
-TOY_OPTION_DEFINE(base64) {
+typedef struct {
     strview_t file;
     strview_t args[BASE64_MAX_ARGS];
     i64 arg_count;
     bool decode;
     bool in_piped;
-};
+} base64_opt_t;
 
-void TOY_OPTION_PARSE(base64)(int argc, char **argv, TOY_OPTION(base64) *opt) {
+void base64_parse_opts(int argc, char **argv, base64_opt_t *opt) {
     opt->in_piped = common_is_piped(os_stdin());
 
     usage_helper(
@@ -45,8 +45,8 @@ void TOY_OPTION_PARSE(base64)(int argc, char **argv, TOY_OPTION(base64) *opt) {
 }
 
 void TOY(base64)(int argc, char **argv) {
-    TOY_OPTION(base64) opt = {0};
-    TOY_OPTION_PARSE(base64)(argc, argv, &opt);
+    base64_opt_t opt = {0};
+    base64_parse_opts(argc, argv, &opt);
 
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
 
