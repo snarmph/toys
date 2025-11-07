@@ -1,0 +1,30 @@
+name: Build for win64
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: x64
+
+      - name: Build using MSVC
+        run: |
+          cl /nologo /utf-8 /Fe:toys.exe /Fo:toys.obj /O2 /W4 /std:clatest src\toys.c
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: toys.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
