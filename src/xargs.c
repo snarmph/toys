@@ -30,7 +30,7 @@ TOY_OPTION_DEFINE(xargs) {
     os_barrier_t thread_barrier;
 };
 
-void parse_opts(int argc, char **argv, TOY_OPTION(xargs) *opt) {
+void TOY_OPTION_PARSE(xargs)(int argc, char **argv, TOY_OPTION(xargs) *opt) {
     strview_t delimiter = STRV_EMPTY;
     bool null = false;
 
@@ -377,10 +377,9 @@ int xargs_thread_entry_point(u64 id, void *udata) {
 }
 
 void TOY(xargs)(int argc, char **argv) {
-    // git submodule foreach pwd | xargs -i {} -j 8 "git -C {} pull"
     arena_t arena = arena_make(ARENA_VIRTUAL, GB(1));
     TOY_OPTION(xargs) opt = {0};
-    parse_opts(argc, argv, &opt);
+    TOY_OPTION_PARSE(xargs)(argc, argv, &opt);
 
     opt.args = xargs_grab_input(&arena, &opt);
     if (opt.dont_run_on_empty && !opt.args) {

@@ -109,8 +109,8 @@ void tui_update_size(void);
 int tui_width(void);
 int tui_height(void);
 
-tuielem_t *tui_panel(const char *title);
-tuielem_t *tui_list(const char *title, int current_item);
+tuielem_t *tui_panel(strview_t title);
+tuielem_t *tui_list(strview_t title, int current_item);
 tuielem_t *tui_begin(void);
 void tui_end(void);
 

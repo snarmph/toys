@@ -36,6 +36,7 @@
 #include "tac.c"
 #include "sleep.c"
 #include "file.c"
+#include "less.c"
 
 typedef struct toy_t toy_t;
 struct toy_t {
@@ -60,6 +61,7 @@ int main(int argc, char **argv) {
         // TOY_DEFINE(get), // TODO seems to only use ~2 threads instead of N, is this a winapi limitation?
         TOY_DEFINE(head),
         TOY_DEFINE(http),
+        TOY_DEFINE(less),
         TOY_DEFINE(ls),
         TOY_DEFINE(neo),
         TOY_DEFINE(pwgen),

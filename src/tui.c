@@ -662,16 +662,16 @@ int tui_height(void) {
     return tui.height;
 }
 
-tuielem_t *tui_panel(const char *title) {
+tuielem_t *tui_panel(strview_t title) {
     tuielem_t *e = tui__new_elem();
-    e->title = strv(title);
+    e->title = title;
     e->border = TUI_BORDER_ROUND | TUI_BORDER_ALL;
     return e;
 }
 
-tuielem_t *tui_list(const char *title, int current_item) {
+tuielem_t *tui_list(strview_t title, int current_item) {
     tuielem_t *e = tui__new_elem();
-    e->title = strv(title);
+    e->title = title;
     e->border = TUI_BORDER_ROUND | TUI_BORDER_ALL;
     e->list_current_item = current_item;
     return e;

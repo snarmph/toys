@@ -130,7 +130,7 @@ void TOY_OPTION_PARSE(xxd)(int argc, char **argv, TOY_OPTION(xxd) *opt) {
     opt->filename = files[0];
 }
 
-void search_next(void) {
+void xxd_search_next(void) {
     strview_t haystack = strv((char*)xxd_state.data.data, xxd_state.data.len);
     usize from = xxd_state.search_cursor > 0 ? xxd_state.search_cursor + 1 : 0;
     strview_t needle = strv(xxd_state.search_buf, xxd_state.search_buf_pos);
@@ -145,7 +145,7 @@ void search_next(void) {
     }
 }
 
-void search_prev(void) {
+void xxd_search_prev(void) {
     strview_t haystack = strv((char*)xxd_state.data.data, xxd_state.data.len);
     if (xxd_state.search_cursor < 0) {
         xxd_state.is_first_search = true;
@@ -166,7 +166,7 @@ void search_prev(void) {
     }
 }
 
-bool update(arena_t *arena, float dt, void *userdata) {
+bool xxd_update(arena_t *arena, float dt, void *userdata) {
     COLLA_UNUSED(userdata);
     i64 start = xxd_state.yoff * 16;
     i64 end = start + tui_height() * 16;
@@ -358,7 +358,7 @@ bool update(arena_t *arena, float dt, void *userdata) {
 #define IS(v) strv_equals(key, strv(v))
 #define IS_RANGE(f, t) (key.buf[0] >= f && key.buf[0] <= t)
 
-bool hex_event(strview_t key) {
+bool xxd_hex_event(strview_t key) {
     if (IS("tab")) {
         xxd_state.is_editing_ascii = !xxd_state.is_editing_ascii;
     }
@@ -407,11 +407,11 @@ bool hex_event(strview_t key) {
             break;
         case 'p':
             xxd_state.is_first_search = false;
-            search_prev();
+            xxd_search_prev();
             break;
         case 'n':
             xxd_state.is_last_search = false;
-            search_next();
+            xxd_search_next();
             break;
         case 'u':
         {
@@ -455,7 +455,7 @@ bool hex_event(strview_t key) {
     return false;
 }
 
-bool ascii_event(strview_t key) {
+bool xxd_ascii_event(strview_t key) {
     if (IS("escape")) {
         xxd_state.mode = XXD_MODE_HEX;
     }
@@ -500,7 +500,7 @@ bool ascii_event(strview_t key) {
     return false;
 }
 
-bool search_event(strview_t key) {
+bool xxd_search_event(strview_t key) {
     if (IS("escape")) {
         xxd_state.mode = XXD_MODE_HEX;
     }
@@ -510,7 +510,7 @@ bool search_event(strview_t key) {
     }
     else if (IS("enter")) {
         xxd_state.mode = XXD_MODE_HEX;
-        search_next();
+        xxd_search_next();
     }
 
     if (key.len > 1 || !IS_RANGE(' ', '~')) {
@@ -524,7 +524,7 @@ bool search_event(strview_t key) {
     return false;
 }
 
-bool goto_event(strview_t key) {
+bool xxd_goto_event(strview_t key) {
     if (IS("escape")) {
         xxd_state.mode = XXD_MODE_HEX;
     }
@@ -564,16 +564,16 @@ bool goto_event(strview_t key) {
     return false;
 }
 
-bool event(arena_t *arena, strview_t key, void *userdata) {
+bool xxd_event(arena_t *arena, strview_t key, void *userdata) {
     COLLA_UNUSED(arena); COLLA_UNUSED(userdata);
 
     if (IS("ctrl+c")) return true;
 
     switch (xxd_state.mode) {
-        case XXD_MODE_HEX:          return hex_event(key);
-        case XXD_MODE_INSERT_ASCII: return ascii_event(key);
-        case XXD_MODE_SEARCH:       return search_event(key);
-        case XXD_MODE_GOTO:         return goto_event(key);
+        case XXD_MODE_HEX:          return xxd_hex_event(key);
+        case XXD_MODE_INSERT_ASCII: return xxd_ascii_event(key);
+        case XXD_MODE_SEARCH:       return xxd_search_event(key);
+        case XXD_MODE_GOTO:         return xxd_goto_event(key);
     }
 
     return false;
@@ -581,6 +581,8 @@ bool event(arena_t *arena, strview_t key, void *userdata) {
 
 #undef IS
 #undef IS_RANGE
+#undef cursor_advance
+#undef cursor_page
 
 void xxd_dump(TOY_OPTION(xxd) *opt) {
     buffer_t buf = xxd_state.data;
@@ -646,8 +648,8 @@ void TOY(xxd)(int argc, char **argv) {
     }
 
     tui_init(&(tui_desc_t){
-        .update = update,
-        .event = event,
+        .update = xxd_update,
+        .event = xxd_event,
     });
     tui_run();
 }
