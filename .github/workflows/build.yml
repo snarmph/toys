@@ -5,6 +5,9 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -20,7 +23,7 @@ jobs:
 
       - name: Build using MSVC
         run: |
-          cl /nologo /utf-8 /Fe:toys.exe /Fo:toys.obj /O2 /W4 /std:clatest src\toys.c
+          cl /nologo /utf-8 /Fe:toys.exe /Fo:toys.obj /O2 /Os /W4 /std:clatest src\toys.c
 
       - name: Create release
         uses: softprops/action-gh-release@v2
